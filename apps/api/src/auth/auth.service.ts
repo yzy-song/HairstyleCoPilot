@@ -42,57 +42,43 @@ export class AuthService {
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
 
-    const stylist = await this.prisma.stylist.findUnique({
-      where: { email },
-    });
+    // 1. First, try to find a stylist with the provided email.
+    const stylist = await this.prisma.stylist.findUnique({ where: { email } });
 
-    if (!stylist) {
-      throw new UnauthorizedException('Invalid credentials.');
+    if (stylist) {
+      // If a stylist is found, check their password.
+      const isPasswordMatching = await bcrypt.compare(password, stylist.passwordHash);
+      if (isPasswordMatching) {
+        // If password matches, generate a STYLIST token.
+        const payload = {
+          sub: stylist.id,
+          email: stylist.email,
+          salonId: stylist.salonId,
+          role: 'stylist', // Crucial role identifier
+        };
+        return { accessToken: this.jwtService.sign(payload) };
+      }
     }
 
-    const isPasswordMatching = await bcrypt.compare(password, stylist.passwordHash);
+    // 2. If no stylist was found OR the password didn't match, try to find a salon.
+    // NOTE: For security, we don't tell the user *which* part failed.
+    const salon = await this.prisma.salon.findUnique({ where: { email } });
 
-    if (!isPasswordMatching) {
-      throw new UnauthorizedException('Invalid credentials.');
+    if (salon) {
+      // If a salon is found, check its password. (Assuming Salon model has a passwordHash)
+      const isPasswordMatching = await bcrypt.compare(password, salon.passwordHash);
+      if (isPasswordMatching) {
+        // If password matches, generate a SALON token.
+        const payload = {
+          sub: salon.id,
+          email: salon.email,
+          role: 'salon', // Crucial role identifier
+        };
+        return { accessToken: this.jwtService.sign(payload) };
+      }
     }
 
-    const payload = {
-      email: stylist.email,
-      sub: stylist.id,
-      salonId: stylist.salonId,
-    };
-
-    return {
-      accessToken: this.jwtService.sign(payload),
-    };
-  }
-
-  // 登录理发师
-  async loginStylist(loginDto: LoginDto) {
-    const stylist = await this.prisma.stylist.findUnique({ where: { email: loginDto.email } });
-    if (!stylist || !(await bcrypt.compare(loginDto.password, stylist.passwordHash))) {
-      throw new UnauthorizedException('Invalid credentials.');
-    }
-    const payload = {
-      sub: stylist.id,
-      email: stylist.email,
-      salonId: stylist.salonId,
-      role: 'stylist', // <-- 添加角色
-    };
-    return { accessToken: this.jwtService.sign(payload) };
-  }
-
-  // 登录沙龙 (假设 Salon 模型也有 email 和 passwordHash)
-  async loginSalon(loginDto: LoginDto) {
-    const salon = await this.prisma.salon.findUnique({ where: { email: loginDto.email } });
-    if (!salon || !(await bcrypt.compare(loginDto.password, salon.passwordHash))) {
-      throw new UnauthorizedException('Invalid credentials.');
-    }
-    const payload = {
-      sub: salon.id,
-      email: salon.email,
-      role: 'salon', // <-- 添加角色
-    };
-    return { accessToken: this.jwtService.sign(payload) };
+    // 3. If neither a stylist nor a salon could be authenticated, throw a single generic error.
+    throw new UnauthorizedException('Invalid credentials.');
   }
 }

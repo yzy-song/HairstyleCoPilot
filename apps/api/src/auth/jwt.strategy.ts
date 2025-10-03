@@ -28,31 +28,31 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   // 4. Passport 在验证 Token 签名有效后，会调用这个方法
   //    payload 是 Token 解码后的 JSON 对象
   async validate(payload: { sub: number; email: string; role: 'stylist' | 'salon' }) {
-    let user: any;
-
     if (payload.role === 'stylist') {
-      user = await this.prisma.stylist.findUnique({
-        where: { id: payload.sub },
-        include: { salon: true },
-      });
-    } else if (payload.role === 'salon') {
-      user = await this.prisma.salon.findUnique({
+      const stylist = await this.prisma.stylist.findUnique({
         where: { id: payload.sub },
       });
+      if (!stylist) {
+        throw new UnauthorizedException('Invalid token');
+      }
+      const { passwordHash, ...result } = stylist;
+      // The stylist object already has salonId, so we just add the role
+      return { ...result, role: 'stylist' };
     }
 
-    if (!user) {
-      throw new UnauthorizedException('Invalid token');
+    if (payload.role === 'salon') {
+      const salon = await this.prisma.salon.findUnique({
+        where: { id: payload.sub },
+      });
+      if (!salon) {
+        throw new UnauthorizedException('Invalid token');
+      }
+      const { passwordHash, ...result } = salon; // Assuming salon might have a passwordHash
+      // **THE KEY CHANGE IS HERE:**
+      // We add a `salonId` property to the salon user object, which is its own ID.
+      return { ...result, role: 'salon', salonId: salon.id };
     }
 
-    // 从返回的用户信息中删除敏感信息，并附加上角色
-    if (payload.role === 'stylist') {
-      const { passwordHash, ...stylistWithoutPassword } = user;
-      return { ...stylistWithoutPassword, role: 'stylist' }; // <-- 将角色附加回去
-    }
-
-    // 假设 salon 也有 passwordHash
-    const { passwordHash, ...salonWithoutPassword } = user;
-    return { ...salonWithoutPassword, role: 'salon' }; // <-- 将角色附加回去
+    throw new UnauthorizedException('Invalid token role');
   }
 }
