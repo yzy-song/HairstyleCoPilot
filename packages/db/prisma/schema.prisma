@@ -1,0 +1,114 @@
+// Generator for Prisma Client (TypeScript)
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Datasource connection to PostgreSQL
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Represents the entire salon/business entity. This is the top-level account.
+model Salon {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  passwordHash String
+  salonName String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stylists Stylist[]
+  clients  Client[]
+}
+
+/// Represents an individual stylist who logs in and uses the application.
+/// Belongs to a Salon, enabling the per-seat business model.
+model Stylist {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  salon   Salon @relation(fields: [salonId], references: [id])
+  salonId Int
+
+  consultations Consultation[]
+
+  @@index([salonId])
+}
+
+/// Represents the salon's customer. The core asset for the salon.
+model Client {
+  id        Int      @id @default(autoincrement())
+  name      String
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime? // For soft deletes to prevent accidental data loss.
+
+  salon   Salon @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  salonId Int
+
+  consultations Consultation[]
+
+  @@index([salonId])
+}
+
+/// The central event table. Groups all artifacts from a single consultation session.
+/// Enables the "Quick Consult" workflow and organized history.
+model Consultation {
+  id        Int      @id @default(autoincrement())
+  notes     String?
+  status    String   @default("SAVED") // Status can be "TEMPORARY" for Quick Consults or "SAVED".
+  createdAt DateTime @default(now())
+  deletedAt DateTime? // Also supports soft deletes.
+
+  client   Client @relation(fields: [clientId], references: [id])
+  clientId Int
+
+  stylist   Stylist @relation(fields: [stylistId], references: [id])
+  stylistId Int
+
+  generatedImages GeneratedImage[]
+  tags            Tag[]
+  
+  @@index([clientId])
+  @@index([stylistId])
+}
+
+/// The library of pre-generated hairstyle templates for stylists to choose from.
+model HairstyleTemplate {
+  id           Int      @id @default(autoincrement())
+  name         String
+  description  String?
+  imageUrl     String   // URL on Cloudinary for the preview image.
+  aiParameters Json     // The JSON "recipe" required to call the Replicate API.
+  createdAt    DateTime @default(now())
+  
+  tags Tag[]
+}
+
+/// A record of a single, final AI-generated image.
+model GeneratedImage {
+  id        Int      @id @default(autoincrement())
+  imageUrl  String   // The final image URL on Cloudinary.
+  notes     String?
+  createdAt DateTime @default(now())
+
+  // An image belongs to one specific consultation session.
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  consultationId Int
+}
+
+/// A flexible tagging system for organization and search.
+model Tag {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  // Many-to-many relationships
+  templates      HairstyleTemplate[]
+  consultations  Consultation[]
+}
