@@ -58,7 +58,6 @@ export class ConsultationsController {
       throw new BadRequestException('Image file is required.');
     }
 
-    // Call the service with the image file (the service will handle upload)
     return this.consultationsService.createGeneratedImage(id, image, createGeneratedImageDto, user);
   }
 }

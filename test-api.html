@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试生成图片接口</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="text"], input[type="number"], textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        input[type="file"] {
+            width: 100%;
+            padding: 8px 0;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .response {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-left: 4px solid #4CAF50;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .error {
+            border-left-color: #f44336;
+            background-color: #ffebee;
+            color: #d32f2f;
+        }
+        .loading {
+            text-align: center;
+            margin: 20px 0;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>测试生成图片接口</h1>
+        <p>测试接口: <code>POST /consultations/{id}/generated-images</code></p>
+
+        <form id="testForm">
+            <div class="form-group">
+                <label for="consultationId">咨询ID (必需):</label>
+                <input type="number" id="consultationId" name="consultationId" value="1" required>
+            </div>
+
+            <div class="form-group">
+                <label for="templateId">模板ID (必需):</label>
+                <input type="number" id="templateId" name="templateId" value="1" required>
+            </div>
+
+            <div class="form-group">
+                <label for="modelKey">模型Key (必需):</label>
+                <input type="text" id="modelKey" name="modelKey" value="hairstyle_v1" required>
+            </div>
+
+            <div class="form-group">
+                <label for="options">选项 (可选，JSON格式):</label>
+                <textarea id="options" name="options" rows="4" placeholder='{"style": "modern", "color": "brown"}'></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="image">图片文件 (必需):</label>
+                <input type="file" id="image" name="image" accept="image/*" required>
+            </div>
+
+            <div class="form-group">
+                <label for="token">JWT Token:</label>
+                <input type="text" id="token" name="token" placeholder="你的JWT令牌">
+            </div>
+
+            <button type="submit" id="submitBtn">发送请求</button>
+        </form>
+
+        <div id="loading" class="loading" style="display: none;">
+            发送中，请稍候...
+        </div>
+
+        <div id="response" class="response" style="display: none;"></div>
+    </div>
+
+    <script>
+        document.getElementById('testForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const consultationId = document.getElementById('consultationId').value;
+            const templateId = document.getElementById('templateId').value;
+            const modelKey = document.getElementById('modelKey').value;
+            const optionsText = document.getElementById('options').value;
+            const imageFile = document.getElementById('image').files[0];
+            const token = document.getElementById('token').value;
+
+            if (!imageFile) {
+                showResponse('请选择图片文件', true);
+                return;
+            }
+
+            if (!token) {
+                showResponse('请输入JWT Token', true);
+                return;
+            }
+
+            // 构建FormData
+            const formData = new FormData();
+            formData.append('image', imageFile);
+            formData.append('templateId', templateId);
+            formData.append('modelKey', modelKey);
+
+            if (optionsText) {
+                try {
+                    const options = JSON.parse(optionsText);
+                    formData.append('options', JSON.stringify(options));
+                } catch (e) {
+                    showResponse('选项格式错误，请输入有效的JSON', true);
+                    return;
+                }
+            }
+
+            // 显示加载状态
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('response').style.display = 'none';
+            document.getElementById('submitBtn').disabled = true;
+
+            try {
+                // 先测试API连接
+                console.log('Testing API connection...');
+                const testResponse = await fetch(`http://localhost:3000/`, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+
+                if (!testResponse.ok) {
+                    showResponse(`API连接测试失败 (${testResponse.status}): ${testResponse.statusText}`, true);
+                    return;
+                }
+
+                console.log('API connection OK, sending main request...');
+
+                const response = await fetch(`http://localhost:3000/consultations/${consultationId}/generated-images`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData,
+                    mode: 'cors'
+                });
+
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+
+                const responseData = await response.json();
+
+                if (response.ok) {
+                    showResponse(JSON.stringify(responseData, null, 2), false);
+                } else {
+                    showResponse(`错误 (${response.status}): ${JSON.stringify(responseData, null, 2)}`, true);
+                }
+            } catch (error) {
+                console.error('Fetch error:', error);
+                let errorMessage = `请求失败: ${error.message}`;
+
+                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                    errorMessage += '\n\n可能的原因:\n1. CORS策略阻止了请求\n2. API服务器未运行或端口不正确\n3. 网络连接问题\n4. 浏览器安全策略限制\n\n建议:\n- 确认API服务器运行在 http://localhost:3000\n- 检查浏览器开发者工具的Network和Console面板\n- 尝试使用其他浏览器或无痕模式';
+                }
+
+                showResponse(errorMessage, true);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('submitBtn').disabled = false;
+            }
+        });
+
+        function showResponse(message, isError) {
+            const responseDiv = document.getElementById('response');
+            responseDiv.textContent = message;
+            responseDiv.style.display = 'block';
+
+            if (isError) {
+                responseDiv.classList.add('error');
+            } else {
+                responseDiv.classList.remove('error');
+            }
+        }
+    </script>
+</body>
+</html>

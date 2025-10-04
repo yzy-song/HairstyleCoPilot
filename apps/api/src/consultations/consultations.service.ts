@@ -98,6 +98,9 @@ export class ConsultationsService {
       finalOptions,
     );
 
+    console.log('=========');
+    console.log(modelInput);
+    console.log('=========');
     // 6. 调用 Replicate API
     let replicateOutput;
     try {
