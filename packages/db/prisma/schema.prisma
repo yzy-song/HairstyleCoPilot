@@ -85,6 +85,7 @@ model HairstyleTemplate {
   name         String
   description  String?
   imageUrl     String   // URL on Cloudinary for the preview image.
+  modelKey     String
   aiParameters Json     // The JSON "recipe" required to call the Replicate API.
   createdAt    DateTime @default(now())
   

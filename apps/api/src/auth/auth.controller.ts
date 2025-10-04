@@ -25,7 +25,6 @@ export class AuthController {
   @Post('login')
   @ApiOperation({ summary: 'Login as a stylist or salon' })
   @ApiResponse({ status: 200, description: 'Login successful, returns JWT token.' })
-  @ApiResponse({ status: 401, description: 'Invalid credentials.' })
   @ApiCommonResponses()
   login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
