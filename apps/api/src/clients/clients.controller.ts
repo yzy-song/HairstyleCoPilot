@@ -1,4 +1,8 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, ParseIntPipe,
+  UseInterceptors, UploadedFile,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ClientsService } from './clients.service';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
@@ -7,7 +11,7 @@ import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { CurrentUser, type AuthenticatedUser } from 'src/auth/decorators/current-user.decorator';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiTags, ApiConsumes } from '@nestjs/swagger';
 import { ApiCommonResponses } from 'src/common/decorators/api-common-responses.decorator';
 
 @ApiTags('Clients')
@@ -60,8 +64,22 @@ export class ClientsController {
   @ApiOperation({ summary: 'Delete a client by ID' })
   @ApiResponse({ status: 200, description: 'The client has been successfully deleted.' })
   @ApiCommonResponses()
-  @Roles('salon') //only salon owners can delete clients
+  @Roles('salon')
   remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
     return this.clientsService.remove(id, user.salonId);
+  }
+
+  @Post(':id/photo')
+  @ApiOperation({ summary: 'Upload a client photo' })
+  @ApiConsumes('multipart/form-data')
+  @ApiCommonResponses()
+  @Roles('stylist', 'salon')
+  @UseInterceptors(FileInterceptor('photo'))
+  uploadPhoto(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() photo: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.clientsService.uploadPhoto(id, photo, user.salonId);
   }
 }

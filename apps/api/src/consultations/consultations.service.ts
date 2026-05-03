@@ -3,6 +3,7 @@ import { PrismaService } from 'src/prisma.service';
 import { CloudinaryService } from 'src/common/cloudinary/cloudinary.service';
 import { CreateConsultationDto } from './dto/create-consultation.dto';
 import { CreateGeneratedImageDto } from './dto/create-generated-image.dto';
+import { UpdateConsultationDto } from './dto/update-consultation.dto';
 import { AuthenticatedUser } from 'src/auth/decorators/current-user.decorator';
 import { MODELS } from 'src/common/replicate/models.config';
 import { ReplicateProvider } from 'src/common/replicate/providers/replicate.provider';
@@ -132,10 +133,45 @@ export class ConsultationsService {
       data: {
         consultationId: consultationId,
         imageUrl: finalImageUrl,
-        // 建议：同时保存源图和模板信息，便于追溯
-        // sourceImageUrl: sourceImageUrl,
-        // hairstyleTemplateId: template.id,
+        sourceImageUrl: sourceImageUrl,
+        hairstyleTemplateId: template.id,
       },
+    });
+  }
+
+  async update(id: number, dto: UpdateConsultationDto, salonId: number) {
+    // Verify ownership
+    await this.findOne(id, salonId);
+
+    const { tags, ...rest } = dto;
+
+    return this.prisma.consultation.update({
+      where: { id },
+      data: {
+        ...rest,
+        ...(tags
+          ? {
+              tags: {
+                set: [],
+                connectOrCreate: tags.map((name: string) => ({
+                  where: { name },
+                  create: { name },
+                })),
+              },
+            }
+          : {}),
+      },
+      include: { client: true, tags: true },
+    });
+  }
+
+  async findGeneratedImages(consultationId: number, salonId: number) {
+    // Verify ownership
+    await this.findOne(consultationId, salonId);
+
+    return this.prisma.generatedImage.findMany({
+      where: { consultationId },
+      orderBy: { createdAt: 'desc' },
     });
   }
 }

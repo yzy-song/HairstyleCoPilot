@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma.service';
+import { CloudinaryService } from 'src/common/cloudinary/cloudinary.service';
 import { paginate, PaginatedResult } from 'src/common/utils/pagination.util';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { CreateClientDto } from './dto/create-client.dto';
@@ -8,7 +9,10 @@ import { Client } from '@repo/db';
 
 @Injectable()
 export class ClientsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cloudinaryService: CloudinaryService,
+  ) {}
 
   async create(createClientDto: CreateClientDto, salonId: number): Promise<Client> {
     return this.prisma.client.create({
@@ -58,13 +62,23 @@ export class ClientsService {
   }
 
   async remove(id: number, salonId: number): Promise<void> {
-    // Verify ownership before deleting
     await this.findOne(id, salonId);
 
-    // Perform a soft delete
     await this.prisma.client.update({
       where: { id },
       data: { deletedAt: new Date() },
+    });
+  }
+
+  async uploadPhoto(id: number, file: Express.Multer.File, salonId: number): Promise<Client> {
+    await this.findOne(id, salonId);
+
+    const upload = await this.cloudinaryService.uploadImageFromBuffer(file.buffer, 'hairstylecopilot/client_photos');
+    const photoUrl = this.cloudinaryService.optimizeCloudinaryUrl(upload.secure_url);
+
+    return this.prisma.client.update({
+      where: { id },
+      data: { clientPhotoUrl: photoUrl },
     });
   }
 }
